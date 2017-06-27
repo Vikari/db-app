@@ -21,9 +21,10 @@ class App extends Component {
     ilmoitukset: [],
     teksti: "",
     valittu: "success",
-    value: 1
+    tallentaa: false
   };
   async componentWillMount() {
+    this.setState({ tallentaa: true });
     const response = await fetch("/ilmoitustaulu/_all_docs?include_docs=true", {
       headers: {
         "Content-Type": "application/json"
@@ -33,9 +34,10 @@ class App extends Component {
     });
     const data = await response.json();
     const ilmoitukset = data.rows.map(obj => obj.doc);
-    ilmoitukset.sort((a, b) => b.teksti.aika - a.teksti.aika);
     this.setState({ ilmoitukset });
+    this.setState({ tallentaa: false });
     socket.on("change", doc => {
+      this.setState({ tallentaa: true });
       if (doc._deleted) {
         // Dokumentti on poistettu.
         this.setState({
@@ -54,9 +56,9 @@ class App extends Component {
           // Dokumenttia muokattiin.
           this.state.ilmoitukset[index] = doc;
         }
-        ilmoitukset.sort((a, b) => b.teksti.aika - a.teksti.aika);
         this.setState({ ilmoitukset });
       }
+      this.setState({ tallentaa: false });
     });
     socket.emit("addListener", "ilmoitustaulu");
   }
@@ -65,6 +67,7 @@ class App extends Component {
   }
   onSubmit = async event => {
     event.preventDefault();
+    this.setState({ tallentaa: true });
     // const teksti = this.state.teksti
     const teksti = {
       teksti: this.state.teksti,
@@ -81,8 +84,8 @@ class App extends Component {
       body: JSON.stringify({ teksti })
     });
     // Tyhjennetään tallennettu arvo tekstikentästä.
-    console.log(this.state.valittu);
     this.setState({ teksti: "" });
+    this.setState({ tallentaa: false });
   };
   render() {
     return (
@@ -90,7 +93,9 @@ class App extends Component {
         <h1>Ilmoitustaulu</h1>
         <Row>
           <Col xs={12} sm={7} md={8} lg={9}>
-            {this.state.ilmoitukset.map(Ilmoitus)}
+            {this.state.ilmoitukset
+              .sort((a, b) => b.teksti.aika - a.teksti.aika)
+              .map(Ilmoitus)}
           </Col>
           <Col xs={12} sm={5} md={4} lg={3}>
             <form onSubmit={this.onSubmit}>
@@ -102,13 +107,14 @@ class App extends Component {
                   value={this.state.teksti}
                   onChange={event =>
                     this.setState({ teksti: event.target.value })}
+                  disabled={this.state.tallentaa}
                 />
               </FormGroup>
               <Button
                 bsStyle="primary"
                 type="submit"
                 block
-                disabled={!this.state.teksti}
+                disabled={!this.state.teksti || this.state.tallentaa}
               >
                 Lähetä
               </Button>
